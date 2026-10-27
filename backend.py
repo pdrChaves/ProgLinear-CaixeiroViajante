@@ -1,15 +1,11 @@
-# Back-end do trabalho de Rebalanceamento de Bicicletas
-# Funcoes principais (iguais aos slides): GerarProblema, SolInicial, Avalia, Sucessores
+# backend - rebalanceamento de bicicletas
 import math
 import random
 import time
 
 
-# ---------------- dados ----------------
-
 def DadosFixos():
-    # estacoes fixas da cidade (TROCAR pelos dados reais)
-    # cada estacao: x, y, tem agora, meta, capacidade
+    # x, y, tem, meta, capacidade
     estacoes = [
         [2, 8, 2, 7, 10],
         [8, 9, 12, 6, 14],
@@ -25,14 +21,21 @@ def DadosFixos():
 
 
 def DadosAleatorios(N):
+    # diferenca entre coletar e entregar no maximo 10 (capacidade do caminhao)
+    while True:
+        d = [random.choice([-1, 1]) * random.randint(1, 6) for _ in range(N)]
+        if abs(sum(d)) <= 10:
+            break
+
+    # sem repetir coordenada
+    livres = [(x, y) for x in range(11) for y in range(11) if (x, y) != (5, 5)]
+    pontos = random.sample(livres, N)
+
     estacoes = []
-    for _ in range(N):
-        cap = random.randint(8, 15)
-        tem = random.randint(0, cap)
-        meta = random.randint(0, cap)
-        while meta == tem:
-            meta = random.randint(0, cap)
-        estacoes.append([random.randint(0, 10), random.randint(0, 10), tem, meta, cap])
+    for (x, y), dem in zip(pontos, d):
+        cap = random.randint(max(8, abs(dem)), 15)
+        tem = random.randint(max(0, -dem), min(cap, cap - dem))
+        estacoes.append([x, y, tem, tem + dem, cap])
     return {"deposito": [5, 5], "Q": 10, "L0": 5, "estacoes": estacoes}
 
 
@@ -40,7 +43,7 @@ def GerarProblema(dados, alfa, beta):
     pontos = [dados["deposito"]] + [[e[0], e[1]] for e in dados["estacoes"]]
     n = len(pontos)
 
-    # matriz C: distancia em linha reta entre todos os pontos (0 = deposito)
+    # matriz de distancias, 0 = deposito
     C = []
     for i in range(n):
         linha = []
@@ -48,44 +51,25 @@ def GerarProblema(dados, alfa, beta):
             linha.append(round(math.dist(pontos[i], pontos[j]), 1))
         C.append(linha)
 
-    s = [0] + [e[2] for e in dados["estacoes"]]    # estoque atual
-    t = [0] + [e[3] for e in dados["estacoes"]]    # alvo (meta)
-    cap = [0] + [e[4] for e in dados["estacoes"]]  # capacidade
-    d = [t[i] - s[i] for i in range(n)]            # demanda: + entregar, - coletar
+    s = [0] + [e[2] for e in dados["estacoes"]]
+    t = [0] + [e[3] for e in dados["estacoes"]]
+    cap = [0] + [e[4] for e in dados["estacoes"]]
+    d = [t[i] - s[i] for i in range(n)]  # positivo entrega, negativo coleta
 
     return {
         "C": C, "pontos": pontos, "s": s, "t": t, "cap": cap, "d": d,
         "Q": dados["Q"], "L0": dados["L0"], "alfa": alfa, "beta": beta,
-        "estacoes": [i for i in range(1, n) if d[i] != 0],  # so as que precisam de ajuste
+        "estacoes": [i for i in range(1, n) if d[i] != 0],
     }
 
 
-# ---------------- funcoes dos slides ----------------
-
-def SolInicial(P, modo="Aleatória"):
+def SolInicial(P):
     sol = list(P["estacoes"])
-    if modo == "Aleatória":
-        random.shuffle(sol)
-        return sol
-
-    # gulosa: vai na estacao mais proxima onde o caminhao consegue operar
-    rota = []
-    atual = 0
-    carga = P["L0"]
-    while sol:
-        pode = [i for i in sol if (P["d"][i] > 0 and carga > 0) or (P["d"][i] < 0 and carga < P["Q"])]
-        if not pode:
-            pode = sol
-        prox = min(pode, key=lambda i: P["C"][atual][i])
-        carga, _ = Operar(P, prox, carga)
-        rota.append(prox)
-        sol.remove(prox)
-        atual = prox
-    return rota
+    random.shuffle(sol)
+    return sol
 
 
 def Operar(P, i, carga):
-    # entrega ou coleta na estacao i, devolve (nova carga, quantidade movida)
     if P["d"][i] > 0:
         q = min(P["d"][i], carga)
         return carga - q, q
@@ -102,62 +86,79 @@ def Simular(sol, P):
     carga = P["L0"]
     sobra = 0
     passos = []
+    anterior = 0
     for i in sol:
+        nome = "Dep" if anterior == 0 else f"E{anterior}"
+        km = P["C"][anterior][i]
         carga, q = Operar(P, i, carga)
         sobra += abs(P["d"][i]) - q
         acao = "entrega" if P["d"][i] > 0 else "coleta"
-        passos.append(f"E{i}: precisava {abs(P['d'][i])}, {acao} {q}, caminhao fica com {carga}")
+        passos.append(f"{nome} -> E{i}: {km:g} km | precisava {abs(P['d'][i])}, {acao} {q}, caminhao fica com {carga}")
+        anterior = i
+    if sol:
+        passos.append(f"E{anterior} -> Dep: {P['C'][anterior][0]:g} km | volta ao deposito")
 
     f = P["alfa"] * dist + P["beta"] * sobra
     return round(f, 2), round(dist, 1), sobra, passos
 
 
 def Avalia(sol, P):
-    # min f = alfa * distancia + beta * desequilibrio residual
+    # f = alfa*distancia + beta*desequilibrio
     return Simular(sol, P)[0]
 
 
-def Sucessores(sol, P):
-    # vizinho = trocar duas estacoes de lugar; devolve o melhor e a nota dele
-    melhor = None
-    f_melhor = math.inf
-    for i in range(len(sol) - 1):
-        for j in range(i + 1, len(sol)):
+def Sucessores(sol, P, pos):
+    # troca a posicao pos com as outras (n-1 vizinhos)
+    vizinhos = []
+    for j in range(len(sol)):
+        if j != pos:
             viz = sol[:]
-            viz[i], viz[j] = viz[j], viz[i]
-            f = Avalia(viz, P)
-            if f < f_melhor:
-                melhor, f_melhor = viz, f
-    return melhor, f_melhor
+            viz[pos], viz[j] = viz[j], viz[pos]
+            vizinhos.append((viz, Avalia(viz, P)))
+    return vizinhos
 
-
-# ---------------- metodos ----------------
 
 def SubidaEncosta(P, sol, log=None):
     f = Avalia(sol, P)
     it = 0
-    while True:
-        viz, f_viz = Sucessores(sol, P)
-        if viz is None or f_viz >= f:
-            return sol, f
-        sol, f = viz, f_viz
+    while len(sol) > 1:
         it += 1
+        pos = random.randrange(len(sol))
+        vizinhos = Sucessores(sol, P, pos)
+        viz, f_viz = min(vizinhos, key=lambda v: v[1])
         if log is not None:
-            log.append(f"it {it:3d}   f = {f:<8g}  {sol}")
+            notas = ", ".join(f"{fv:g}" for _, fv in vizinhos)
+            log.append(f"it {it:3d}  posicao {pos + 1}  vizinhos: {notas}")
+        if f_viz >= f:
+            if log is not None:
+                log.append(f"        nenhum vizinho melhor que f = {f:g}, para aqui")
+            break
+        sol, f = viz, f_viz
+        if log is not None:
+            log.append(f"        melhor vizinho: {sol}  f = {f:g}")
+    return sol, f
 
 
-def SubidaEncostaTentativas(P, sol, tentativas, log=None):
-    # repete a subida de encosta partindo de solucoes diferentes e fica com a melhor
-    melhor, f_melhor = None, math.inf
-    for k in range(tentativas):
-        if k > 0:
-            sol = SolInicial(P, "Aleatória")
-        s, f = SubidaEncosta(P, sol)
-        if log is not None:
-            log.append(f"tentativa {k + 1:3d}   f = {f:<8g}  {s}")
-        if f < f_melhor:
-            melhor, f_melhor = s, f
-    return melhor, f_melhor
+def SubidaEncostaTentativas(P, sol, tmax, log=None):
+    # para depois de tmax tentativas seguidas sem melhorar
+    f = Avalia(sol, P)
+    t = 0
+    it = 0
+    while t < tmax and len(sol) > 1:
+        it += 1
+        pos = random.randrange(len(sol))
+        vizinhos = Sucessores(sol, P, pos)
+        viz, f_viz = min(vizinhos, key=lambda v: v[1])
+        if f_viz < f:
+            sol, f = viz, f_viz
+            t = 0
+            if log is not None:
+                log.append(f"it {it:3d}  posicao {pos + 1}  melhorou: {sol}  f = {f:g}")
+        else:
+            t += 1
+            if log is not None:
+                log.append(f"it {it:3d}  posicao {pos + 1}  sem melhora ({t}/{tmax})")
+    return sol, f
 
 
 def TemperaSimulada(P, sol, Tini, Tfim, fator, log=None):
@@ -172,7 +173,6 @@ def TemperaSimulada(P, sol, Tini, Tfim, fator, log=None):
             viz[i], viz[j] = viz[j], viz[i]
         f_viz = Avalia(viz, P)
         delta = f_viz - f
-        # melhor: aceita sempre / pior: aceita com chance e^(-delta/T)
         if delta < 0 or random.random() < math.exp(-delta / T):
             sol, f = viz, f_viz
             if f < f_melhor:
@@ -184,23 +184,20 @@ def TemperaSimulada(P, sol, Tini, Tfim, fator, log=None):
     return melhor, f_melhor
 
 
-def Executar(P, metodo, sol, tentativas, Tini, Tfim, fator, log=None):
+def Executar(P, metodo, sol, tmax, Tini, Tfim, fator, log=None):
     if metodo == "Subida de Encosta":
         return SubidaEncosta(P, sol, log)
     if metodo == "Subida de Encosta com Tentativas":
-        return SubidaEncostaTentativas(P, sol, tentativas, log)
+        return SubidaEncostaTentativas(P, sol, tmax, log)
     return TemperaSimulada(P, sol, Tini, Tfim, fator, log)
 
-
-# ---------------- analise comparativa ----------------
 
 METODOS = ["Subida de Encosta", "Subida de Encosta com Tentativas", "Têmpera Simulada"]
 
 
-def Analise(P, modo, tentativas, Tini, Tfim, fator, execucoes=10):
-    # cada execucao parte de uma solucao inicial diferente,
-    # e os tres metodos usam a mesma solucao inicial naquela execucao
-    iniciais = [SolInicial(P, modo) for _ in range(execucoes)]
+def Analise(P, tmax, Tini, Tfim, fator, execucoes=10):
+    # os 3 metodos comecam da mesma solucao em cada execucao
+    iniciais = [SolInicial(P) for _ in range(execucoes)]
     resultado = []
     for metodo in METODOS:
         finais, ganhos, tempos = [], [], []
@@ -208,7 +205,7 @@ def Analise(P, modo, tentativas, Tini, Tfim, fator, execucoes=10):
         for sol0 in iniciais:
             f0 = Avalia(sol0, P)
             inicio = time.perf_counter()
-            sol, f = Executar(P, metodo, sol0[:], tentativas, Tini, Tfim, fator)
+            sol, f = Executar(P, metodo, sol0[:], tmax, Tini, Tfim, fator)
             tempos.append((time.perf_counter() - inicio) * 1000)
             finais.append(f)
             ganhos.append(100 * (f0 - f) / f0 if f0 else 0)
@@ -217,7 +214,7 @@ def Analise(P, modo, tentativas, Tini, Tfim, fator, execucoes=10):
         if metodo == "Subida de Encosta":
             config = "-"
         elif metodo == "Subida de Encosta com Tentativas":
-            config = f"{tentativas} tentativas"
+            config = f"TMAX={tmax}"
         else:
             config = f"T0={Tini:g} Tf={Tfim:g} fator={fator:g}"
         resultado.append({
@@ -229,10 +226,8 @@ def Analise(P, modo, tentativas, Tini, Tfim, fator, execucoes=10):
     return resultado
 
 
-# ---------------- PDF (feito na mao, sem biblioteca) ----------------
-
+# pdf gerado na mao
 def GerarPDF(caminho, textos, linhas):
-    # textos: (x, y, tamanho, negrito, texto)   linhas: (x1, y1, x2, y2)
     ops = ["0.5 w"]
     for x1, y1, x2, y2 in linhas:
         ops.append(f"{x1} {y1} m {x2} {y2} l S")
@@ -265,7 +260,7 @@ def GerarPDF(caminho, textos, linhas):
         arq.write(saida)
 
 
-def RelatorioPDF(caminho, P, resultado, modo, execucoes):
+def RelatorioPDF(caminho, P, resultado, execucoes):
     textos, linhas = [], []
     y = 800
     textos.append((40, y, 15, True, "Rebalanceamento de Bicicletas - Análise comparativa"))
@@ -281,7 +276,7 @@ def RelatorioPDF(caminho, P, resultado, modo, execucoes):
                    f"f = {P['alfa']:g} x distância + {P['beta']:g} x desequilíbrio residual"))
     y -= 15
     textos.append((50, y, 10, False,
-                   f"{execucoes} execuções por método, solução inicial {modo}, "
+                   f"{execucoes} execuções por método, solução inicial aleatória, "
                    f"a mesma para os três métodos em cada execução"))
     y -= 30
 
@@ -316,7 +311,7 @@ def RelatorioPDF(caminho, P, resultado, modo, execucoes):
 
 
 if __name__ == "__main__":
-    # teste com o exemplo do slide: tem que dar 18 e 15
+    # exemplo do slide (18 e 15)
     P = {"C": [[0, 4, 5], [4, 0, 6], [5, 6, 0]], "d": [0, 4, -5], "Q": 6, "L0": 4,
          "alfa": 1, "beta": 1}
     print("0-2-1-0:", Avalia([2, 1], P))

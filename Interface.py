@@ -1,7 +1,7 @@
-# Interface do trabalho de Rebalanceamento de Bicicletas
+# interface - rebalanceamento de bicicletas
 import time
 import tkinter as tk
-from tkinter import ttk, filedialog
+from tkinter import ttk, filedialog, messagebox
 
 import backend
 
@@ -17,7 +17,7 @@ class App:
         self.root.configure(bg=FUNDO)
 
         # configuracoes
-        self.tipo = tk.StringVar(value="Fixa")
+        self.tipo = tk.StringVar(value="FIXO")
         self.tamanho = tk.StringVar(value="6")
         self.Q = tk.StringVar()
         self.L0 = tk.StringVar()
@@ -28,10 +28,9 @@ class App:
         self.estacoes = []
         self.P = None
 
-        # busca local
+        # metodos
         self.metodo = tk.StringVar(value="Subida de Encosta")
-        self.inicial = tk.StringVar(value="Aleatória")
-        self.tentativas = tk.StringVar(value="10")
+        self.tmax = tk.StringVar(value="10")
         self.Tini = tk.StringVar(value="100")
         self.Tfim = tk.StringVar(value="0.01")
         self.fator = tk.StringVar(value="0.99")
@@ -40,7 +39,6 @@ class App:
         self.tela = None
         self.Principal()
 
-    # ---------- componentes ----------
     def Label(self, pai, txt, **kw):
         return tk.Label(pai, text=txt, bg=FUNDO, fg=LETRA, **kw)
 
@@ -77,7 +75,7 @@ class App:
         if voltar:
             tk.Button(self.tela, text="Voltar", command=self.Principal).pack(anchor="w", padx=8, pady=6)
 
-        # area com barra de rolagem
+        # rolagem
         canvas = tk.Canvas(self.tela, bg=FUNDO, highlightthickness=0)
         barra = tk.Scrollbar(self.tela, orient="vertical", command=canvas.yview)
         corpo = tk.Frame(canvas, bg=FUNDO)
@@ -97,24 +95,28 @@ class App:
         canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
         return corpo
 
-    # ---------- 1. Principal ----------
+    # tela principal
     def Principal(self):
+        self.root.title("Rebalanceamento de Bicicletas")
         corpo = self.NovaTela(voltar=False)
         tk.Button(corpo, text="Sobre", width=20, command=self.Sobre).pack(anchor="w", padx=12, pady=(12, 4))
         tk.Button(corpo, text="Configurações", width=20, command=self.Configuracoes).pack(anchor="w", padx=12, pady=4)
-        tk.Button(corpo, text="Busca Local", width=20, command=self.BuscaLocal).pack(anchor="w", padx=12, pady=4)
+        tk.Button(corpo, text="Métodos Básicos", width=20, command=self.MetodosBasicos).pack(anchor="w", padx=12, pady=4)
+        tk.Button(corpo, text="Algoritmos Genéticos", width=20,
+                  command=lambda: messagebox.showinfo("Algoritmos Genéticos", "Módulo em Desenvolvimento")).pack(anchor="w", padx=12, pady=4)
         if self.P:
             situacao = f"Problema gerado: {len(self.P['pontos']) - 1} estações ({self.tipo.get()})"
         else:
             situacao = "Nenhum problema gerado ainda"
         self.Label(corpo, situacao).pack(anchor="w", padx=12, pady=10)
 
-    # ---------- Sobre ----------
     def Sobre(self):
+        self.root.title("Sobre o Sistema")
         corpo = self.NovaTela()
         texto = (
             "Rebalanceamento de bicicletas compartilhadas em pontos de coleta\n\n"
             "Disciplina: Programação Linear e Aplicações\n"
+            "Curso: Análise e Desenvolvimento de Sistemas - Fatec Cruzeiro\n"
             "Docente: Luis Fernando\n"
             "Alunos: Bruno Kenji, Fabiano José, Murilo Fernando e Pedro Chaves\n\n"
             "Problema: em um sistema de bicicletas compartilhadas algumas estações ficam com\n"
@@ -125,22 +127,24 @@ class App:
             "min f = alfa * distância percorrida + beta * desequilíbrio residual\n"
             "desequilíbrio residual = bicicletas que ficaram fora da meta depois da rota\n\n"
             "Métodos:\n"
-            "Solução = ordem de visita das estações. Vizinho = trocar duas estações de lugar.\n"
-            "Subida de Encosta: vai para o melhor vizinho até nenhum ser melhor.\n"
-            "Subida de Encosta com Tentativas: repete a subida começando de rotas diferentes.\n"
+            "Solução = ordem de visita das estações.\n"
+            "Subida de Encosta: escolhe uma posição e troca com cada uma das outras (N-1 vizinhos);\n"
+            "vai para o melhor vizinho e para quando nenhum é melhor que a solução atual.\n"
+            "Subida de Encosta com Tentativas: igual, mas só para depois de TMAX tentativas\n"
+            "seguidas sem melhora (cada tentativa usa outra posição).\n"
             "Têmpera Simulada: aceita piora com uma chance que diminui com a temperatura."
         )
         self.Label(corpo, texto, justify="left").pack(anchor="w", padx=12, pady=8)
 
-    # ---------- 2. Configuracoes ----------
     def Configuracoes(self):
+        self.root.title("Configuração do Problema")
         corpo = self.NovaTela()
 
         g = self.Grupo(corpo, "Problema")
         self.Label(g, "Tipo de execução").grid(row=0, column=0, sticky="w")
-        self.Combo(g, self.tipo, ["Fixa", "Aleatória"], 10, self.MudouTipo).grid(row=0, column=1, padx=(4, 16))
+        self.Combo(g, self.tipo, ["FIXO", "ALEATÓRIO"], 11, self.MudouTipo).grid(row=0, column=1, padx=(4, 16))
         self.Label(g, "Tamanho do problema").grid(row=0, column=2, sticky="w")
-        self.campo_tamanho = self.Combo(g, self.tamanho, ["3", "4", "5", "6", "8", "10", "12"], 4)
+        self.campo_tamanho = self.Entrada(g, self.tamanho, 5)
         self.campo_tamanho.grid(row=0, column=3, padx=(4, 16))
         tk.Button(g, text="Gerar problema", command=self.GerarProblema).grid(row=0, column=4)
         self.MudouTipo(self.tipo.get(), recarregar=False)
@@ -165,13 +169,13 @@ class App:
             self.area_problema.insert("end", self.TextoProblema())
 
     def MudouTipo(self, valor, recarregar=True):
-        if valor == "Fixa":
+        if valor == "FIXO":
             self.campo_tamanho.configure(state="disabled")
             if recarregar:
                 self.CarregarDados(backend.DadosFixos())
                 self.DesenharEstacoes()
         else:
-            self.campo_tamanho.configure(state="readonly")
+            self.campo_tamanho.configure(state="normal")
 
     def CarregarDados(self, dados):
         self.Q.set(str(dados["Q"]))
@@ -267,8 +271,16 @@ class App:
         return dados, alfa, beta, erros
 
     def GerarProblema(self):
-        if self.tipo.get() == "Aleatória":
-            self.CarregarDados(backend.DadosAleatorios(int(self.tamanho.get())))
+        if self.tipo.get() == "ALEATÓRIO":
+            try:
+                n = int(self.tamanho.get())
+            except ValueError:
+                n = 0
+            if n < 2 or n > 30:
+                self.area_problema.delete("1.0", "end")
+                self.area_problema.insert("end", "Tamanho do problema tem que ser um número inteiro de 2 a 30.")
+                return
+            self.CarregarDados(backend.DadosAleatorios(n))
             self.DesenharEstacoes()
 
         dados, alfa, beta, erros = self.LerDados()
@@ -310,8 +322,8 @@ class App:
         txt += f"Estações que precisam de ajuste: {len(P['estacoes'])}"
         return txt
 
-    # ---------- 3. Busca Local ----------
-    def BuscaLocal(self):
+    def MetodosBasicos(self):
+        self.root.title("Métodos Básicos")
         corpo = self.NovaTela()
         if not self.P:
             self.Label(corpo, "Gere o problema em Configurações primeiro.").pack(anchor="w", padx=12, pady=10)
@@ -320,13 +332,11 @@ class App:
         g = self.Grupo(corpo, "Parâmetros")
         self.Label(g, "Método").grid(row=0, column=0, sticky="w", pady=2)
         self.Combo(g, self.metodo, backend.METODOS, 32, self.MudouMetodo).grid(row=0, column=1, sticky="w", padx=4, pady=2)
-        self.Label(g, "Solução inicial").grid(row=0, column=2, sticky="w", padx=(16, 0), pady=2)
-        self.Combo(g, self.inicial, ["Aleatória", "Gulosa"], 10).grid(row=0, column=3, sticky="w", padx=4, pady=2)
 
-        self.campo_tent = self.Entrada(g, self.tentativas)
+        self.campo_tmax = self.Entrada(g, self.tmax)
         self.campos_temp = [self.Entrada(g, self.Tini), self.Entrada(g, self.Tfim), self.Entrada(g, self.fator)]
-        nomes = ["Total de tentativas", "Temperatura inicial", "Temperatura final", "Fator redutor"]
-        for k, (nome, campo) in enumerate(zip(nomes, [self.campo_tent] + self.campos_temp), 1):
+        nomes = ["TMAX", "Temperatura inicial", "Temperatura final", "Fator redutor"]
+        for k, (nome, campo) in enumerate(zip(nomes, [self.campo_tmax] + self.campos_temp), 1):
             self.Label(g, nome).grid(row=k, column=0, sticky="w", pady=2)
             campo.grid(row=k, column=1, sticky="w", padx=4, pady=2)
         self.MudouMetodo(self.metodo.get())
@@ -334,29 +344,29 @@ class App:
         b = tk.Frame(g, bg=FUNDO)
         b.grid(row=5, column=0, columnspan=4, sticky="w", pady=(6, 0))
         tk.Button(b, text="Executar", width=12, command=self.ExecutarMetodo).pack(side="left", padx=(0, 6))
-        tk.Button(b, text="Análise", width=12, command=self.AnaliseComparativa).pack(side="left")
+        tk.Button(b, text="Análise Comparativa", width=18, command=self.AnaliseComparativa).pack(side="left")
 
         g = self.Grupo(corpo, "Resultados")
         self.area_busca = self.AreaExibicao(g, 22)
 
     def MudouMetodo(self, metodo):
-        self.campo_tent.configure(state="normal" if metodo == "Subida de Encosta com Tentativas" else "disabled")
+        self.campo_tmax.configure(state="normal" if metodo == "Subida de Encosta com Tentativas" else "disabled")
         for c in self.campos_temp:
             c.configure(state="normal" if metodo == "Têmpera Simulada" else "disabled")
 
     def LerParametros(self):
         try:
-            tent = int(self.tentativas.get())
+            tmax = int(self.tmax.get())
             Tini = float(self.Tini.get().replace(",", "."))
             Tfim = float(self.Tfim.get().replace(",", "."))
             fator = float(self.fator.get().replace(",", "."))
         except ValueError:
             return None, "Algum parâmetro não é um número."
-        if tent < 1:
-            return None, "Total de tentativas tem que ser pelo menos 1."
         if not (0 < fator < 1) or Tfim <= 0 or Tini <= Tfim:
             return None, "Use fator redutor entre 0 e 1 e temperatura inicial maior que a final (> 0)."
-        return (tent, Tini, Tfim, fator), None
+        if tmax < 1:
+            return None, "TMAX tem que ser pelo menos 1."
+        return (tmax, Tini, Tfim, fator), None
 
     def Mostrar(self, txt):
         self.area_busca.delete("1.0", "end")
@@ -370,19 +380,19 @@ class App:
         if not self.P["estacoes"]:
             self.Mostrar("Nenhuma estação precisa de ajuste.")
             return
-        tent, Tini, Tfim, fator = par
+        tmax, Tini, Tfim, fator = par
         metodo = self.metodo.get()
 
-        sol0 = backend.SolInicial(self.P, self.inicial.get())
+        sol0 = backend.SolInicial(self.P)
         f0 = backend.Avalia(sol0, self.P)
         log = []
         inicio = time.perf_counter()
-        sol, f = backend.Executar(self.P, metodo, sol0[:], tent, Tini, Tfim, fator, log)
+        sol, f = backend.Executar(self.P, metodo, sol0[:], tmax, Tini, Tfim, fator, log)
         tempo = (time.perf_counter() - inicio) * 1000
         _, dist, sobra, passos = backend.Simular(sol, self.P)
 
         txt = f"{metodo}\n"
-        txt += f"Solução inicial ({self.inicial.get()}): {sol0}   f = {f0:g}\n\n"
+        txt += f"Solução inicial: {sol0}   f = {f0:g}\n\n"
         txt += "Iterações:\n" + ("\n".join(log) if log else "(nenhum vizinho melhorou a solução inicial)")
         txt += "\n\nResultado\n"
         txt += "Rota: " + " -> ".join(map(str, [0] + sol + [0])) + "\n"
@@ -400,9 +410,9 @@ class App:
         if not self.P["estacoes"]:
             self.Mostrar("Nenhuma estação precisa de ajuste.")
             return
-        tent, Tini, Tfim, fator = par
+        tmax, Tini, Tfim, fator = par
         execucoes = 10
-        res = backend.Analise(self.P, self.inicial.get(), tent, Tini, Tfim, fator, execucoes)
+        res = backend.Analise(self.P, tmax, Tini, Tfim, fator, execucoes)
 
         txt = f"Análise comparativa ({execucoes} execuções por método, mesma solução inicial para os três)\n\n"
         txt += f"{'Método':<34}{'f médio':>9}{'Melhor f':>10}{'Ganho %':>9}{'Tempo ms':>10}\n"
@@ -415,7 +425,7 @@ class App:
         caminho = filedialog.asksaveasfilename(defaultextension=".pdf", filetypes=[("PDF", "*.pdf")],
                                                initialfile="relatorio_busca_local.pdf")
         if caminho:
-            backend.RelatorioPDF(caminho, self.P, res, self.inicial.get(), execucoes)
+            backend.RelatorioPDF(caminho, self.P, res, execucoes)
             txt += f"\nRelatório salvo em: {caminho}"
         else:
             txt += "\nRelatório PDF não foi salvo."

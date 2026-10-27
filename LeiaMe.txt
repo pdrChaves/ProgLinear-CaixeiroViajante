@@ -1,0 +1,51 @@
+REBALANCEAMENTO DE BICICLETAS - Programacao Linear e Aplicacoes
+Grupo 3: Bruno Kenji, Fabiano Jose, Murilo Fernando e Pedro Chaves
+
+
+REQUISITOS
+- Python 3.8 ou mais novo (https://www.python.org/downloads/)
+  No Windows, marcar a opcao "Add Python to PATH" na instalacao.
+- Nao precisa instalar nenhuma biblioteca. O programa usa so o tkinter, que ja vem junto com o Python no Windows.
+  (No Linux, se der erro de tkinter: sudo apt install python3-tk)
+
+
+ARQUIVOS
+- Interface.py : telas do programa (arquivo que deve ser executado)
+- backend.py   : geracao do problema, funcao objetivo e metodos de busca
+Os dois arquivos precisam estar na mesma pasta.
+
+
+COMO EXECUTAR
+1. Abrir o terminal (cmd ou PowerShell) na pasta dos arquivos.
+2. Rodar:
+       python Interface.py
+   (se nao funcionar, tentar: py Interface.py   ou   python3 Interface.py)
+
+
+COMO USAR
+1. Configuracoes
+   - Tipo de Execucao FIXO: usa as estacoes que aparecem na tela (podem ser
+     editadas). ALEATORIO: sorteia as estacoes com o Tamanho do Problema
+     informado.
+   - Os dados do caminhao (capacidade, bikes ao sair, posicao do deposito) e os
+     pesos alfa e beta da funcao objetivo tambem sao informados nessa tela.
+   - Clicar em "Gerar Problema". A matriz de distancias e os vetores das
+     estacoes aparecem na area de exibicao.
+
+2. Metodos Basicos (precisa gerar o problema antes)
+   - Escolher o metodo: Subida de Encosta, Subida de Encosta com Tentativas
+     ou Tempera Simulada.
+   - TMAX so fica habilitado na Subida de Encosta com Tentativas.
+     Temperatura inicial, temperatura final e fator redutor so ficam
+     habilitados na Tempera Simulada.
+   - "Executar": roda o metodo escolhido e mostra as iteracoes e o resultado.
+   - "Analise Comparativa": roda os tres metodos 10 vezes cada, partindo das
+     mesmas solucoes iniciais, mostra a tabela na tela e pede onde salvar o
+     relatorio em PDF.
+
+3. Algoritmos Geneticos: mostra a mensagem "Modulo em Desenvolvimento".
+
+
+FUNCAO OBJETIVO
+min f = alfa * distancia percorrida + beta * desequilibrio residual
+A distancia entre dois pontos e calculada em linha reta pelas coordenadas X e Y.
