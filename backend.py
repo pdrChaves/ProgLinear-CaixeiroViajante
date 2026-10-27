@@ -316,3 +316,4 @@ if __name__ == "__main__":
          "alfa": 1, "beta": 1}
     print("0-2-1-0:", Avalia([2, 1], P))
     print("0-1-2-0:", Avalia([1, 2], P))
+    
